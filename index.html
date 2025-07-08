@@ -19,7 +19,7 @@
         <i id="icon-success" class="ph-check-circle text-6xl text-green-500 mx-auto hidden"></i>
         <i id="icon-error" class="ph-x-circle text-6xl text-red-500 mx-auto hidden"></i>
         
-        <h1 id="status-title" class="text-2xl font-bold text-gray-800 mt-4">Validating Check-in...</h1>
+        <h1 id="status-title" class="text-2xl font-bold text-gray-800 mt-4">Initializing...</h1>
         <p id="status-message" class="text-gray-600 mt-2">Please wait a moment.</p>
         
         <div id="google-signin-button-container" class="mt-8 hidden">
@@ -30,17 +30,25 @@
 
     <script src="https://unpkg.com/phosphor-icons"></script>
     <script>
-        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzxD61iDypwe34XQkAFTuywsmSVzPVbCzkLlQgkvWTZCDfMIdWHgklOK0hKcbD7eFkf/exec';
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxHyIbLz6SuXY-tccAqb_jZlmMSQteiS44TT8M43cZUefiVfUxHAXgL3v10rADfbu_o/exec';
         let SIGNUP_ID = null;
+
+        function updateStatus(icon, title, message) {
+            document.getElementById('icon-loading').classList.add('hidden');
+            document.getElementById('icon-success').classList.add('hidden');
+            document.getElementById('icon-error').classList.add('hidden');
+
+            if (icon) document.getElementById(icon).classList.remove('hidden');
+            if (title) document.getElementById('status-title').textContent = title;
+            if (message) document.getElementById('status-message').textContent = message;
+        }
 
         function onSignIn(googleUser) {
             const id_token = googleUser.getAuthResponse().id_token;
-            const approverEmail = googleUser.getBasicProfile().getEmail();
-
+            
+            updateStatus('icon-loading', 'Processing Check-in...', 'Please wait while we validate your approval.');
             document.getElementById('google-signin-button-container').classList.add('hidden');
-            document.getElementById('icon-loading').classList.remove('hidden');
-            document.getElementById('status-title').textContent = 'Processing...';
-            document.getElementById('status-message').textContent = 'Please wait while we validate your approval.';
+
 
             fetch(WEB_APP_URL, {
                 method: 'POST',
@@ -53,42 +61,35 @@
             })
             .then(response => response.json())
             .then(result => {
-                document.getElementById('icon-loading').classList.add('hidden');
                 if (result.status === 'success') {
-                    document.getElementById('icon-success').classList.remove('hidden');
-                    document.getElementById('status-title').textContent = 'Check-in Complete!';
-                    document.getElementById('status-message').textContent = result.message;
+                    updateStatus('icon-success', 'Check-in Complete!', result.message);
                 } else {
                     throw new Error(result.error || 'An unknown error occurred.');
                 }
             })
             .catch(error => {
-                document.getElementById('icon-loading').classList.add('hidden');
-                document.getElementById('icon-error').classList.remove('hidden');
-                document.getElementById('status-title').textContent = 'Check-in Failed';
-                document.getElementById('status-message').textContent = error.message;
+                updateStatus('icon-error', 'Check-in Failed', error.message);
             });
         }
 
         function startApp() {
+            updateStatus('icon-loading', 'Loading...', 'Reading QR Code Data...');
             const urlParams = new URLSearchParams(window.location.search);
             SIGNUP_ID = urlParams.get('signupId');
 
             if (!SIGNUP_ID) {
-                document.getElementById('icon-loading').classList.add('hidden');
-                document.getElementById('icon-error').classList.remove('hidden');
-                document.getElementById('status-title').textContent = 'Invalid QR Code';
-                document.getElementById('status-message').textContent = 'No Signup ID was found. Please try again with a valid QR code.';
+                updateStatus('icon-error', 'Invalid QR Code', 'No Signup ID was found. Please try again with a valid QR code.');
                 return;
             }
             
+            updateStatus('icon-loading', 'Loading Google Sign-In...', `Please wait. Signup ID: ${SIGNUP_ID}`);
+            
             gapi.load('auth2', function(){
+                updateStatus('icon-loading', 'Initializing Authentication...', 'Almost there...');
                 gapi.auth2.init({
                     client_id: document.querySelector('meta[name="google-signin-client_id"]').content
                 }).then(function(){
-                    document.getElementById('icon-loading').classList.add('hidden');
-                    document.getElementById('status-title').textContent = 'Approver Verification';
-                    document.getElementById('status-message').textContent = `Please sign in to complete the check-in for Signup ID: ${SIGNUP_ID}.`;
+                    updateStatus(null, 'Approver Verification', 'Please sign in to complete the check-in.');
                     document.getElementById('google-signin-button-container').classList.remove('hidden');
                     gapi.signin2.render('my-signin2', {
                         'scope': 'profile email',
@@ -98,6 +99,9 @@
                         'theme': 'dark',
                         'onsuccess': onSignIn,
                     });
+                }, function(error) {
+                    const errorDetails = error.details || 'Check console for more info.';
+                    updateStatus('icon-error', 'Initialization Failed', `Could not initialize Google Sign-In. Error: ${errorDetails}. Please check your Client ID and Authorized JavaScript Origins in the Google Cloud Console.`);
                 });
             });
         }

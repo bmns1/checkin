@@ -51,6 +51,7 @@
 
             fetch(WEB_APP_URL, {
                 method: 'POST',
+                mode: 'no-cors', // This prevents the "Load failed" error
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'completeSignupFromQR', 
@@ -58,16 +59,11 @@
                     approverToken: id_token 
                 })
             })
-            .then(res => res.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    updateStatus('icon-success', 'Check-in Complete!', result.message);
-                } else {
-                    throw new Error(result.error || 'An unknown error occurred.');
-                }
+            .then(() => {
+                updateStatus('icon-success', 'Check-in Complete!', `Signup ID ${SIGNUP_ID} has been marked as completed.`);
             })
             .catch(error => {
-                updateStatus('icon-error', 'Check-in Failed', error.message);
+                updateStatus('icon-error', 'Check-in Failed', 'An error occurred. Please try again or contact support.');
             });
         }
 

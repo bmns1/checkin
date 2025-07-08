@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="google-signin-client_id" content="14216824305-v19ecsmrhk1muaglrlhjceqjk5oeqr4n.apps.googleusercontent.com">
     <title>SVA Volunteer Check-in</title>
-    <script src="https://apis.google.com/js/platform.js?onload=startApp" async defer></script>
+    <!-- New Google Identity Services Library -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,16 +22,15 @@
         <h1 id="status-title" class="text-2xl font-bold text-gray-800 mt-4">Initializing...</h1>
         <p id="status-message" class="text-gray-600 mt-2">Please wait a moment.</p>
         
-        <div id="google-signin-button-container" class="mt-8 hidden">
-             <p class="text-sm text-gray-500 mb-4">Please sign in as an approver to complete this check-in.</p>
-            <div id="my-signin2"></div>
-        </div>
+        <!-- Container for the new Google Sign-In button -->
+        <div id="google-signin-button-container" class="mt-8 flex justify-center"></div>
     </div>
 
     <script src="https://unpkg.com/phosphor-icons"></script>
     <script>
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxHyIbLz6SuXY-tccAqb_jZlmMSQteiS44TT8M43cZUefiVfUxHAXgL3v10rADfbu_o/exec';
         let SIGNUP_ID = null;
+        const CLIENT_ID = "14216824305-v19ecsmrhk1muaglrlhjceqjk5oeqr4n.apps.googleusercontent.com";
 
         function updateStatus(icon, title, message) {
             document.getElementById('icon-loading').classList.add('hidden');
@@ -43,11 +42,11 @@
             if (message) document.getElementById('status-message').textContent = message;
         }
 
-        function onSignIn(googleUser) {
-            const id_token = googleUser.getAuthResponse().id_token;
+        function handleCredentialResponse(response) {
+            const id_token = response.credential;
             
             updateStatus('icon-loading', 'Processing Check-in...', 'Please wait while we validate your approval.');
-            document.getElementById('google-signin-button-container').classList.add('hidden');
+            document.getElementById('google-signin-button-container').innerHTML = '';
 
 
             fetch(WEB_APP_URL, {
@@ -59,7 +58,7 @@
                     approverToken: id_token 
                 })
             })
-            .then(response => response.json())
+            .then(res => res.json())
             .then(result => {
                 if (result.status === 'success') {
                     updateStatus('icon-success', 'Check-in Complete!', result.message);
@@ -72,7 +71,7 @@
             });
         }
 
-        function startApp() {
+        window.onload = function () {
             updateStatus('icon-loading', 'Loading...', 'Reading QR Code Data...');
             const urlParams = new URLSearchParams(window.location.search);
             SIGNUP_ID = urlParams.get('signupId');
@@ -84,27 +83,19 @@
             
             updateStatus('icon-loading', 'Loading Google Sign-In...', `Please wait. Signup ID: ${SIGNUP_ID}`);
             
-            gapi.load('auth2', function(){
-                updateStatus('icon-loading', 'Initializing Authentication...', 'Almost there...');
-                gapi.auth2.init({
-                    client_id: document.querySelector('meta[name="google-signin-client_id"]').content
-                }).then(function(){
-                    updateStatus(null, 'Approver Verification', 'Please sign in to complete the check-in.');
-                    document.getElementById('google-signin-button-container').classList.remove('hidden');
-                    gapi.signin2.render('my-signin2', {
-                        'scope': 'profile email',
-                        'width': 240,
-                        'height': 50,
-                        'longtitle': true,
-                        'theme': 'dark',
-                        'onsuccess': onSignIn,
-                    });
-                }, function(error) {
-                    const errorDetails = error.details || 'Check console for more info.';
-                    updateStatus('icon-error', 'Initialization Failed', `Could not initialize Google Sign-In. Error: ${errorDetails}. Please check your Client ID and Authorized JavaScript Origins in the Google Cloud Console.`);
-                });
+            google.accounts.id.initialize({
+                client_id: CLIENT_ID,
+                callback: handleCredentialResponse
             });
-        }
+
+            google.accounts.id.renderButton(
+                document.getElementById('google-signin-button-container'),
+                { theme: "outline", size: "large" }  // customization attributes
+            );
+            
+            updateStatus(null, 'Approver Verification', 'Please sign in to complete the check-in.');
+            if(typeof phosphor !== 'undefined') phosphor.replace();
+        };
     </script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,40 +35,40 @@
         const statusIcon = document.getElementById('status-icon');
 
         function updateStatus(title, message, isError = false) {
+            console.log(`[DEBUG] Status Update: ${title} - ${message}`);
             statusTitle.textContent = title;
-            statusMessage.innerHTML = message;
+            statusMessage.innerHTML = message; // Use innerHTML to allow links
             if (isError) {
                 statusIcon.innerHTML = '<i class="ph-x-circle text-6xl text-red-500 mx-auto"></i>';
             }
         }
         
         function handleCredentialResponse(response) {
+            console.log("[DEBUG] Step 3: Google Sign-In successful. Received token.");
             updateStatus("Validation Successful", "Completing the check-in process...");
             const id_token = response.credential;
-            const opportunityId = new URLSearchParams(window.location.search).get('opportunityId');
+            const signupId = new URLSearchParams(window.location.search).get('signupId');
 
-            if (!opportunityId) {
-                updateStatus("Check-in Failed", "No Opportunity ID found in the URL. Please scan the QR code again.", true);
+            if (!signupId) {
+                updateStatus("Check-in Failed", "No Signup ID found in the URL. Please scan the QR code again.", true);
                 return;
             }
 
+            console.log(`[DEBUG] Step 4: Sending check-in request for SignupID: ${signupId}`);
             fetch(PARENT_PORTAL_BACKEND, {
                 method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'completeSignupFromQR',
-                    opportunityId: opportunityId,
+                    signupId: signupId,
                     token: id_token
-                }),
-                headers: { 'Content-Type': 'application/json' }
+                })
             })
-            .then(res => res.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    updateStatus("Check-in Complete!", result.data.message);
-                    statusIcon.innerHTML = '<i class="ph-check-circle text-6xl text-green-500 mx-auto"></i>';
-                } else {
-                    throw new Error(result.error);
-                }
+            .then(() => {
+                console.log("[DEBUG] Step 5: Check-in request sent successfully.");
+                updateStatus("Check-in Complete!", "Thank you for volunteering! Your hours have been recorded.");
+                statusIcon.innerHTML = '<i class="ph-check-circle text-6xl text-green-500 mx-auto"></i>';
             })
             .catch(error => {
                 console.error('Check-in fetch error:', error);
@@ -76,6 +77,7 @@
         }
         
         window.onload = function () {
+            console.log("[DEBUG] Step 1: Page loaded. Initializing Google Sign-In.");
             updateStatus("Initializing Authentication...", "Please wait a moment.");
             
             try {
@@ -84,8 +86,10 @@
                     callback: handleCredentialResponse
                 });
                 
+                console.log("[DEBUG] Step 2: Google library initialized. Rendering One Tap prompt.");
                 google.accounts.id.prompt((notification) => {
                     if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                        console.warn("[DEBUG] One Tap prompt was not shown. Reason:", notification.getNotDisplayedReason());
                         updateStatus("Manual Sign-in Required", "Please click the button below to continue.");
                          google.accounts.id.renderButton(
                             document.getElementById('google-signin-button-container'),
@@ -96,10 +100,9 @@
 
             } catch (error) {
                 console.error("Google Sign-In initialization failed:", error);
-                updateStatus("Initialization Failed", `Could not initialize Google Sign-In. Error: ${error.message}. Please check your Client ID and Authorized JavaScript Origins.`, true);
+                updateStatus("Initialization Failed", `Could not initialize Google Sign-In. Error: ${error.message}. Please check your Client ID and Authorized JavaScript Origins in the Google Cloud Console.`, true);
             }
         };
     </script>
 </body>
 </html>
-

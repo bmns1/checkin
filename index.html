@@ -58,6 +58,7 @@
             fetch(PARENT_PORTAL_BACKEND, {
                 method: 'POST',
                 mode: 'no-cors',
+                // Remove no-cors to read the response
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'completeSignupFromQR',
@@ -65,10 +66,15 @@
                     token: id_token
                 })
             })
-            .then(() => {
-                console.log("[DEBUG] Step 5: Check-in request sent successfully.");
-                updateStatus("Check-in Complete!", "Thank you for volunteering! Your hours have been recorded.");
-                statusIcon.innerHTML = '<i class="ph-check-circle text-6xl text-green-500 mx-auto"></i>';
+            .then(res => res.json()) // Read the response from the backend
+            .then(result => {
+                console.log("[DEBUG] Step 5: Received response from backend:", result);
+                if (result.status === 'success') {
+                    updateStatus("Check-in Complete!", result.data.message || "Thank you for volunteering! Your hours have been recorded.");
+                    statusIcon.innerHTML = '<i class="ph-check-circle text-6xl text-green-500 mx-auto"></i>';
+                } else {
+                    throw new Error(result.error || "An unknown error occurred on the backend.");
+                }
             })
             .catch(error => {
                 console.error('Check-in fetch error:', error);
@@ -106,3 +112,4 @@
     </script>
 </body>
 </html>
+

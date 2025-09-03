@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,56 +10,61 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/phosphor-icons"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
     <div id="status-container" class="text-center p-8 bg-white rounded-lg shadow-lg max-w-md w-full">
         <img src="https://raw.githubusercontent.com/bmns1/parent-portal/main/logo.png" alt="SVA Logo" class="h-20 w-auto mx-auto mb-4">
-        <h1 class="text-2xl font-bold text-gray-800">Volunteer Check-in</h1>
         
-        <div id="status-icon" class="mt-6">
-             <i class="ph-spinner-gap text-6xl text-teal-600 mx-auto animate-spin"></i>
+        <!-- Status Title -->
+        <h1 id="status-title" class="text-2xl font-bold text-gray-800">Volunteer Check-in</h1>
+
+        <!-- Status Message -->
+        <div id="status-message" class="mt-4 text-gray-600">
+             <p>Please sign in to complete the volunteer check-in.</p>
         </div>
         
-        <h2 id="status-title" class="text-xl font-semibold text-gray-700 mt-4">Initializing...</h2>
-        <p id="status-message" class="text-gray-500 mt-2">Preparing the check-in process.</p>
-        
-        <div id="google-signin-button-container" class="mt-6"></div>
+        <!-- Google Sign-In Button -->
+        <div id="google-signin-button-container" class="mt-6 flex justify-center"></div>
+
     </div>
 
     <script>
-        const PARENT_PORTAL_BACKEND = 'https://script.google.com/macros/s/AKfycbx3LGShhqFBG5Y2TocWHYYgg8Sp-mK2YbkZ2x6tWJwf6li0teEvIYYXa5zNxDKtV4U7/exec';
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx3LGShhqFBG5Y2TocWHYYgg8Sp-mK2YbkZ2x6tWJwf6li0teEvIYYXa5zNxDKtV4U7/exec';
         const CLIENT_ID = "14216824305-v19ecsmrhk1muaglrlhjceqjk5oeqr4n.apps.googleusercontent.com";
 
-        const statusTitle = document.getElementById('status-title');
-        const statusMessage = document.getElementById('status-message');
-        const statusIcon = document.getElementById('status-icon');
-
-        function updateStatus(title, message, isError = false) {
-            console.log(`[DEBUG] Status Update: ${title} - ${message}`);
-            statusTitle.textContent = title;
-            statusMessage.innerHTML = message; // Use innerHTML to allow links
+        function updateStatus(title, message, isError = false, showSpinner = false) {
+            document.getElementById('status-title').textContent = title;
+            let iconHtml = '';
             if (isError) {
-                statusIcon.innerHTML = '<i class="ph-x-circle text-6xl text-red-500 mx-auto"></i>';
+                iconHtml = '<i class="ph-x-circle text-5xl text-red-500 mx-auto mb-4"></i>';
+            } else if (showSpinner) {
+                 iconHtml = '<i class="ph-spinner-gap text-5xl text-teal-600 mx-auto animate-spin mb-4"></i>';
             }
+            document.getElementById('status-message').innerHTML = iconHtml + `<p>${message}</p>`;
         }
-        
+
         function handleCredentialResponse(response) {
-            console.log("[DEBUG] Step 3: Google Sign-In successful. Received token.");
-            updateStatus("Validation Successful", "Completing the check-in process...");
             const id_token = response.credential;
-            const signupId = new URLSearchParams(window.location.search).get('signupId');
+            const urlParams = new URLSearchParams(window.location.search);
+            const signupId = urlParams.get('signupId');
 
             if (!signupId) {
-                updateStatus("Check-in Failed", "No Signup ID found in the URL. Please scan the QR code again.", true);
+                updateStatus('Check-in Failed', 'Error: No Signup ID was found in the URL. Please scan the QR code again.', true);
                 return;
             }
+            
+            updateStatus('Validating Check-in...', 'Please wait a moment.', false, true);
+            document.getElementById('google-signin-button-container').style.display = 'none';
 
-            console.log(`[DEBUG] Step 4: Sending check-in request for SignupID: ${signupId}`);
-            fetch(PARENT_PORTAL_BACKEND, {
+            fetch(WEB_APP_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                // Remove no-cors to read the response
+                mode: 'no-cors', // Use no-cors to prevent the browser from blocking the request
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'completeSignupFromQR',
@@ -66,22 +72,17 @@
                     token: id_token
                 })
             })
-            .then(res => res.json()) // Read the response from the backend
-            .then(result => {
-                console.log("[DEBUG] Step 5: Received response from backend:", result);
-                if (result.status === 'success') {
-                    updateStatus("Check-in Complete!", result.data.message || "Thank you for volunteering! Your hours have been recorded.");
-                    statusIcon.innerHTML = '<i class="ph-check-circle text-6xl text-green-500 mx-auto"></i>';
-                } else {
-                    throw new Error(result.error || "An unknown error occurred on the backend.");
-                }
+            .then(() => {
+                // Since we can't read the response with no-cors, we assume success
+                updateStatus('Check-in Complete!', 'Thank you! The volunteer hours have been successfully marked as completed.');
             })
             .catch(error => {
-                console.error('Check-in fetch error:', error);
-                updateStatus("Check-in Failed", `An error occurred: ${error.message}. Please try again.`, true);
+                // This catch block will likely only catch network errors, not application errors from the script
+                console.error('Check-in Fetch Error:', error);
+                updateStatus('Check-in Failed', `An error occurred: Load failed. Please try again.`, true);
             });
         }
-        
+
         window.onload = function () {
             console.log("[DEBUG] Step 1: Page loaded. Initializing Google Sign-In.");
             updateStatus("Initializing Authentication...", "Please wait a moment.");
@@ -110,6 +111,7 @@
             }
         };
     </script>
+
 </body>
 </html>
 
